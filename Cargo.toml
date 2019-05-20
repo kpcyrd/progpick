@@ -1,0 +1,16 @@
+[package]
+name = "progpick"
+version = "0.1.0"
+description = "Bruteforce with a stream of permutations of a specific pattern"
+authors = ["kpcyrd <git@rxv.cc>"]
+license = "GPL-3.0"
+repository = "https://github.com/kpcyrd/progpick"
+categories = ["command-line-utilities"]
+readme = "README.md"
+edition = "2018"
+
+[dependencies]
+structopt = "0.2"
+env_logger = "0.6"
+log = "0.4"
+failure = "0.1"
