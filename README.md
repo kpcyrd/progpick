@@ -1,6 +1,7 @@
 # progpick
 
-Bruteforce with a stream of permutations of a specific pattern.
+Bruteforce with a stream of permutations of a specific pattern. Also prints a
+progress bar and calculates an ETA.
 
 In case you tend to forget your LUKS password as well.
 
@@ -10,6 +11,11 @@ In case you tend to forget your LUKS password as well.
     bash -c 'for x in {a..z}{a..z}{a..z}{a..z}{a..z}; do echo $x; done'
     # this is not
     progpick '{a..z}{a..z}{a..z}{a..z}{a..z}'
+
+    # Show progress bar
+    progpick '{a..z}{a..z}{a..z}{a..z}{a..z}' > /dev/null
+    # Disable progress bar
+    progpick -q '{a..z}{a..z}{a..z}{a..z}{a..z}' > /dev/null
 
     # regular expression
     [a-z]{2-4}[0-9]{2}
@@ -24,8 +30,6 @@ In case you tend to forget your LUKS password as well.
 # TODO
 
 - implement some of the flags in main.rs
-- add progress bar
-- estimate remaining time
 
 # License
 
