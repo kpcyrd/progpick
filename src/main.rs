@@ -23,21 +23,23 @@ pub struct Args {
     /// Do not print progress bar
     #[structopt(short = "q", long = "quiet")]
     quiet: bool,
-    /// Send permutations to subprocess
+    /// Send permutations to a subprocess (arguments are supported but shell syntax is not)
     #[structopt(short = "e", long = "exec")]
     exec: Option<String>,
     pattern: Pattern,
-    // -z for null byte seperated
-    // -n for dry run/explain(?)
-    // -s for start offset(?)
-    // ?? for end/range/step(?)
+}
 
-    // state file, write everything to that file, skip everything already in the file
-    // this allows resumption
+pub enum Match<'a> {
+    KnownMatch(&'a [u8]),
+    UnknownMatch,
+    None,
 }
 
 trait Feedback {
     fn new(total: usize) -> Self;
+
+    #[inline(always)]
+    fn found(&self, password: &[u8]);
 
     #[inline(always)]
     fn inc(&self) {
@@ -48,11 +50,20 @@ trait Feedback {
     }
 }
 
+fn display_pw(bytes: &[u8]) -> &str {
+    std::str::from_utf8(&bytes[..bytes.len()-1]).unwrap()
+}
+
 struct Silent;
 impl Feedback for Silent {
     #[inline(always)]
     fn new(_total: usize) -> Silent {
         Silent
+    }
+
+    #[inline(always)]
+    fn found(&self, password: &[u8]) {
+        println!("[+] found: {:?}", display_pw(password));
     }
 }
 
@@ -74,6 +85,11 @@ impl Feedback for Verbose {
     }
 
     #[inline(always)]
+    fn found(&self, password: &[u8]) {
+        self.0.println(format!("\x1b[1m[\x1b[32m+\x1b[0;1m]\x1b[0m found: {:?}", display_pw(password)));
+    }
+
+    #[inline(always)]
     fn inc(&self) {
         self.0.inc(1);
     }
@@ -86,7 +102,7 @@ impl Feedback for Verbose {
 
 trait Sink {
     #[inline(always)]
-    fn write(&mut self, b: &[u8]) -> Result<bool>;
+    fn write<'a>(&mut self, b: &'a [u8]) -> Result<Match<'a>>;
 }
 
 struct Stdout(io::Stdout);
@@ -97,21 +113,41 @@ impl Stdout {
 }
 impl Sink for Stdout {
     #[inline(always)]
-    fn write(&mut self, b: &[u8]) -> Result<bool> {
-        Ok(self.0.write(b).is_err())
+    fn write<'a>(&mut self, b: &'a[u8]) -> Result<Match<'a>> {
+        if self.0.write(b).is_err() {
+            // we can't reliably tell which password worked
+            Ok(Match::UnknownMatch)
+        } else {
+            Ok(Match::None)
+        }
     }
 }
 
-struct Exec<'a>(&'a str);
-impl<'a> Exec<'a> {
-    fn new(exec: &str) -> Exec {
-        Exec(exec)
+struct Exec {
+    bin: String,
+    args: Vec<String>,
+}
+
+impl Exec {
+    fn new(cmd: &str) -> Result<Exec> {
+        let mut cmd = shellwords::split(cmd)
+            .map_err(|_| format_err!("Mismatched quotes in cmd"))?;
+        if cmd.len() < 1 {
+            bail!("cmd argument can't be empty");
+        }
+        let bin = cmd.remove(0);
+        Ok(Exec {
+            bin,
+            args: cmd,
+        })
     }
 }
-impl<'a> Sink for Exec<'a> {
+
+impl Sink for Exec {
     #[inline(always)]
-    fn write(&mut self, b: &[u8]) -> Result<bool> {
-        let mut child = Command::new(self.0)
+    fn write<'a>(&mut self, b: &'a [u8]) -> Result<Match<'a>> {
+        let mut child = Command::new(&self.bin)
+            .args(&self.args)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -126,7 +162,12 @@ impl<'a> Sink for Exec<'a> {
             .wait()
             .context("Failed to wait for child")?;
 
-        Ok(exit.success())
+        if exit.success() {
+            // we know the password
+            Ok(Match::KnownMatch(b))
+        } else {
+            Ok(Match::None)
+        }
     }
 }
 
@@ -136,8 +177,13 @@ fn permutate<F: Feedback, S: Sink>(mut pattern: Pattern, mut sink: S) -> Result<
     let mut out = String::new();
     while let Some(out) = pattern.next(&mut out) {
         out.push('\n');
-        if sink.write(out.as_bytes())? {
-            break;
+        match sink.write(out.as_bytes())? {
+            Match::KnownMatch(hit) => {
+                f.found(hit);
+                break;
+            },
+            Match::UnknownMatch => break,
+            Match::None => (),
         }
         out.clear();
         f.inc();
@@ -163,7 +209,7 @@ fn run() -> Result<()> {
         println!("{}", args.pattern.count());
     } else {
         if let Some(exec) = args.exec {
-            let exec = Exec::new(&exec);
+            let exec = Exec::new(&exec)?;
             dispatch(args.pattern, exec, args.quiet)?;
         } else {
             let stdout = Stdout::new();

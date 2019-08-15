@@ -12,9 +12,9 @@ In case you tend to forget your LUKS password as well.
     # this is not
     progpick '{a..z}{a..z}{a..z}{a..z}{a..z}'
 
-    # Show progress bar
+    # With progress bar
     progpick '{a..z}{a..z}{a..z}{a..z}{a..z}' > /dev/null
-    # Disable progress bar
+    # Without progress bar
     progpick -q '{a..z}{a..z}{a..z}{a..z}{a..z}' > /dev/null
 
     # regular expression
@@ -26,10 +26,11 @@ In case you tend to forget your LUKS password as well.
     progpick 'a{b,c{d,e{f,g}}}' | while read -r x; do
         ./script "$x"
     done
+    # Send the result to stdin
+    progpick -e './script.sh' 'a{b,c{d,e{f,g}}}'
 
-# TODO
-
-- implement some of the flags in main.rs
+    # Attempt to open a luks partition
+    sudo progpick -e 'cryptsetup open --test-passphrase /dev/sdc1' 'a{b,c{d,e{f,g}}}'
 
 # License
 
