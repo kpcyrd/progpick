@@ -13,16 +13,16 @@ mod tokens;
 
 #[derive(Debug, Parser)]
 pub struct Args {
-    /// Verbose logs (can be used multiple times)
+    /// Verbose logs (can be used multiple times, maximum: 4)
     #[clap(short, long, parse(from_occurrences))]
     verbose: u8,
-    /// Count options instead of printing them
+    /// Count total number of permutations instead of printing them
     #[clap(short = 'c', long = "count")]
     count: bool,
     /// Do not print progress bar
     #[clap(short = 'q', long = "quiet")]
     quiet: bool,
-    /// Send permutations to a subprocess (arguments are supported but shell syntax is not)
+    /// Send permutations to stdin of a subprocess
     #[clap(short = 'e', long = "exec")]
     exec: Option<String>,
     pattern: Pattern,
