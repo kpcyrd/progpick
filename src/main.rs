@@ -1,11 +1,7 @@
-#[macro_use]
-extern crate failure;
-
 use atty::Stream;
+use clap::Parser;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
 use indicatif::{ProgressBar, ProgressStyle, ProgressDrawTarget};
 
 mod errors;
@@ -14,17 +10,16 @@ mod pattern;
 use crate::pattern::Pattern;
 mod tokens;
 
-#[derive(Debug, StructOpt)]
-#[structopt(raw(global_settings = "&[AppSettings::ColoredHelp]"))]
+#[derive(Debug, Parser)]
 pub struct Args {
     /// Count options instead of printing them
-    #[structopt(short = "c", long = "count")]
+    #[clap(short = 'c', long = "count")]
     count: bool,
     /// Do not print progress bar
-    #[structopt(short = "q", long = "quiet")]
+    #[clap(short = 'q', long = "quiet")]
     quiet: bool,
     /// Send permutations to a subprocess (arguments are supported but shell syntax is not)
-    #[structopt(short = "e", long = "exec")]
+    #[clap(short = 'e', long = "exec")]
     exec: Option<String>,
     pattern: Pattern,
 }
@@ -38,7 +33,6 @@ pub enum Match<'a> {
 trait Feedback {
     fn new(total: usize) -> Self;
 
-    #[inline(always)]
     fn found(&self, password: &[u8]);
 
     #[inline(always)]
@@ -101,7 +95,6 @@ impl Feedback for Verbose {
 }
 
 trait Sink {
-    #[inline(always)]
     fn write<'a>(&mut self, b: &'a [u8]) -> Result<Match<'a>>;
 }
 
@@ -131,7 +124,7 @@ struct Exec {
 impl Exec {
     fn new(cmd: &str) -> Result<Exec> {
         let mut cmd = shellwords::split(cmd)
-            .map_err(|_| format_err!("Mismatched quotes in cmd"))?;
+            .map_err(|_| anyhow!("Mismatched quotes in cmd"))?;
         if cmd.len() < 1 {
             bail!("cmd argument can't be empty");
         }
@@ -220,14 +213,7 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() {
+fn main() -> Result<()> {
     env_logger::init();
-
-    if let Err(err) = run() {
-        eprintln!("Error: {}", err);
-        for cause in err.iter_chain().skip(1) {
-            eprintln!("Because: {}", cause);
-        }
-        std::process::exit(1);
-    }
+    run()
 }
