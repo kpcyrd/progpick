@@ -129,7 +129,7 @@ impl Exec {
     fn new(cmd: &str) -> Result<Exec> {
         let mut cmd = shellwords::split(cmd)
             .map_err(|_| anyhow!("Mismatched quotes in cmd"))?;
-        if cmd.len() < 1 {
+        if cmd.is_empty() {
             bail!("cmd argument can't be empty");
         }
         let bin = cmd.remove(0);
@@ -212,14 +212,12 @@ fn main() -> Result<()> {
 
     if args.count {
         println!("{}", args.pattern.count());
+    } else if let Some(exec) = args.exec {
+        let exec = Exec::new(&exec)?;
+        dispatch(args.pattern, exec, args.quiet)?;
     } else {
-        if let Some(exec) = args.exec {
-            let exec = Exec::new(&exec)?;
-            dispatch(args.pattern, exec, args.quiet)?;
-        } else {
-            let stdout = Stdout::new();
-            dispatch(args.pattern, stdout, args.quiet || atty::is(Stream::Stdout))?;
-        }
+        let stdout = Stdout::new();
+        dispatch(args.pattern, stdout, args.quiet || atty::is(Stream::Stdout))?;
     }
 
     Ok(())

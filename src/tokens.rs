@@ -75,7 +75,7 @@ pub fn parse(s: &str) -> Result<Vec<Token>> {
                         bail!("range patterns only support a single ascii character");
                     }
 
-                    let start = x.chars().nth(0).unwrap();
+                    let start = x.chars().next().unwrap();
 
                     // test for escape sequence
                     let mut end = iter
