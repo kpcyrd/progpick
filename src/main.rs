@@ -1,8 +1,9 @@
 use atty::Stream;
 use clap::Parser;
+use env_logger::Env;
+use indicatif::{ProgressBar, ProgressStyle, ProgressDrawTarget};
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
-use indicatif::{ProgressBar, ProgressStyle, ProgressDrawTarget};
 
 mod errors;
 use crate::errors::*;
@@ -12,6 +13,9 @@ mod tokens;
 
 #[derive(Debug, Parser)]
 pub struct Args {
+    /// Verbose logs (can be used multiple times)
+    #[clap(short, long, parse(from_occurrences))]
+    verbose: u8,
     /// Count options instead of printing them
     #[clap(short = 'c', long = "count")]
     count: bool,
@@ -195,8 +199,16 @@ fn dispatch<S: Sink>(pattern: Pattern, sink: S, quiet: bool) -> Result<()> {
     }
 }
 
-fn run() -> Result<()> {
+fn main() -> Result<()> {
     let args = Args::from_args();
+
+    let log_level = match args.verbose {
+        0 => "warn",
+        1 => "info",
+        2 => "debug",
+        _ => "trace",
+    };
+    env_logger::init_from_env(Env::default().default_filter_or(log_level));
 
     if args.count {
         println!("{}", args.pattern.count());
@@ -211,9 +223,4 @@ fn run() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn main() -> Result<()> {
-    env_logger::init();
-    run()
 }
