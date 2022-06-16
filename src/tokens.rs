@@ -34,7 +34,7 @@ pub fn parse(s: &str) -> Result<Vec<Token>> {
             }
             '}' => {
                 if in_switch == 0 {
-                    bail!("unmatched }, not in a switch statement");
+                    bail!("unmatched }}, not in a switch statement");
                 }
 
                 if !x.is_empty() {
@@ -75,17 +75,17 @@ pub fn parse(s: &str) -> Result<Vec<Token>> {
                         bail!("range patterns only support a single ascii character");
                     }
 
-                    let start = x.chars().nth(0).unwrap();
+                    let start = x.chars().next().unwrap();
 
                     // test for escape sequence
                     let mut end = iter
                         .next()
-                        .ok_or_else(|| format_err!("unexpected end of string in range pattern"))?;
+                        .context("unexpected end of string in range pattern")?;
 
                     if end == '\\' {
                         end = iter
                             .next()
-                            .ok_or_else(|| format_err!("unexpected end of string in escape sequence"))?;
+                            .context("unexpected end of string in escape sequence")?;
                     }
 
                     // ensure end is also a single byte
@@ -129,7 +129,7 @@ pub fn parse(s: &str) -> Result<Vec<Token>> {
     }
 
     if in_switch > 0 {
-        bail!("unmatched {, still in switch at end of string");
+        bail!("unmatched {{, still in switch at end of string");
     }
 
     Ok(tokens)

@@ -1,12 +1,9 @@
-#[macro_use]
-extern crate failure;
-
 use atty::Stream;
+use clap::Parser;
+use env_logger::Env;
+use indicatif::{ProgressBar, ProgressStyle, ProgressDrawTarget};
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
-use indicatif::{ProgressBar, ProgressStyle, ProgressDrawTarget};
 
 mod errors;
 use crate::errors::*;
@@ -14,17 +11,19 @@ mod pattern;
 use crate::pattern::Pattern;
 mod tokens;
 
-#[derive(Debug, StructOpt)]
-#[structopt(raw(global_settings = "&[AppSettings::ColoredHelp]"))]
+#[derive(Debug, Parser)]
 pub struct Args {
+    /// Verbose logs (can be used multiple times)
+    #[clap(short, long, parse(from_occurrences))]
+    verbose: u8,
     /// Count options instead of printing them
-    #[structopt(short = "c", long = "count")]
+    #[clap(short = 'c', long = "count")]
     count: bool,
     /// Do not print progress bar
-    #[structopt(short = "q", long = "quiet")]
+    #[clap(short = 'q', long = "quiet")]
     quiet: bool,
     /// Send permutations to a subprocess (arguments are supported but shell syntax is not)
-    #[structopt(short = "e", long = "exec")]
+    #[clap(short = 'e', long = "exec")]
     exec: Option<String>,
     pattern: Pattern,
 }
@@ -38,7 +37,6 @@ pub enum Match<'a> {
 trait Feedback {
     fn new(total: usize) -> Self;
 
-    #[inline(always)]
     fn found(&self, password: &[u8]);
 
     #[inline(always)]
@@ -68,10 +66,11 @@ impl Feedback for Silent {
 }
 
 struct Verbose(ProgressBar);
+
 impl Feedback for Verbose {
     #[inline]
     fn new(total: usize) -> Verbose {
-        clicolors_control::set_colors_enabled(true);
+        console::set_colors_enabled(true);
 
         let pb = ProgressBar::new(total as u64);
         pb.set_draw_target(ProgressDrawTarget::stderr());
@@ -101,7 +100,6 @@ impl Feedback for Verbose {
 }
 
 trait Sink {
-    #[inline(always)]
     fn write<'a>(&mut self, b: &'a [u8]) -> Result<Match<'a>>;
 }
 
@@ -111,6 +109,7 @@ impl Stdout {
         Stdout(io::stdout())
     }
 }
+
 impl Sink for Stdout {
     #[inline(always)]
     fn write<'a>(&mut self, b: &'a[u8]) -> Result<Match<'a>> {
@@ -131,8 +130,8 @@ struct Exec {
 impl Exec {
     fn new(cmd: &str) -> Result<Exec> {
         let mut cmd = shellwords::split(cmd)
-            .map_err(|_| format_err!("Mismatched quotes in cmd"))?;
-        if cmd.len() < 1 {
+            .map_err(|_| anyhow!("Mismatched quotes in cmd"))?;
+        if cmd.is_empty() {
             bail!("cmd argument can't be empty");
         }
         let bin = cmd.remove(0);
@@ -202,32 +201,26 @@ fn dispatch<S: Sink>(pattern: Pattern, sink: S, quiet: bool) -> Result<()> {
     }
 }
 
-fn run() -> Result<()> {
+fn main() -> Result<()> {
     let args = Args::from_args();
+
+    let log_level = match args.verbose {
+        0 => "warn",
+        1 => "info",
+        2 => "debug",
+        _ => "trace",
+    };
+    env_logger::init_from_env(Env::default().default_filter_or(log_level));
 
     if args.count {
         println!("{}", args.pattern.count());
+    } else if let Some(exec) = args.exec {
+        let exec = Exec::new(&exec)?;
+        dispatch(args.pattern, exec, args.quiet)?;
     } else {
-        if let Some(exec) = args.exec {
-            let exec = Exec::new(&exec)?;
-            dispatch(args.pattern, exec, args.quiet)?;
-        } else {
-            let stdout = Stdout::new();
-            dispatch(args.pattern, stdout, args.quiet || atty::is(Stream::Stdout))?;
-        }
+        let stdout = Stdout::new();
+        dispatch(args.pattern, stdout, args.quiet || atty::is(Stream::Stdout))?;
     }
 
     Ok(())
-}
-
-fn main() {
-    env_logger::init();
-
-    if let Err(err) = run() {
-        eprintln!("Error: {}", err);
-        for cause in err.iter_chain().skip(1) {
-            eprintln!("Because: {}", cause);
-        }
-        std::process::exit(1);
-    }
 }

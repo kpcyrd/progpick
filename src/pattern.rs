@@ -1,6 +1,5 @@
 use crate::errors::*;
 use crate::tokens::{self, Token};
-use log::*;
 use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
