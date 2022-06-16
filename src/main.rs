@@ -1,7 +1,7 @@
 use atty::Stream;
 use clap::Parser;
 use env_logger::Env;
-use indicatif::{ProgressBar, ProgressStyle, ProgressDrawTarget};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
@@ -40,16 +40,14 @@ trait Feedback {
     fn found(&self, password: &[u8]);
 
     #[inline(always)]
-    fn inc(&self) {
-    }
+    fn inc(&self) {}
 
     #[inline(always)]
-    fn finish(&self) {
-    }
+    fn finish(&self) {}
 }
 
 fn display_pw(bytes: &[u8]) -> &str {
-    std::str::from_utf8(&bytes[..bytes.len()-1]).unwrap()
+    std::str::from_utf8(&bytes[..bytes.len() - 1]).unwrap()
 }
 
 struct Silent;
@@ -85,7 +83,10 @@ impl Feedback for Verbose {
 
     #[inline(always)]
     fn found(&self, password: &[u8]) {
-        self.0.println(format!("\x1b[1m[\x1b[32m+\x1b[0;1m]\x1b[0m found: {:?}", display_pw(password)));
+        self.0.println(format!(
+            "\x1b[1m[\x1b[32m+\x1b[0;1m]\x1b[0m found: {:?}",
+            display_pw(password)
+        ));
     }
 
     #[inline(always)]
@@ -112,7 +113,7 @@ impl Stdout {
 
 impl Sink for Stdout {
     #[inline(always)]
-    fn write<'a>(&mut self, b: &'a[u8]) -> Result<Match<'a>> {
+    fn write<'a>(&mut self, b: &'a [u8]) -> Result<Match<'a>> {
         if self.0.write(b).is_err() {
             // we can't reliably tell which password worked
             Ok(Match::UnknownMatch)
@@ -129,16 +130,12 @@ struct Exec {
 
 impl Exec {
     fn new(cmd: &str) -> Result<Exec> {
-        let mut cmd = shellwords::split(cmd)
-            .map_err(|_| anyhow!("Mismatched quotes in cmd"))?;
+        let mut cmd = shellwords::split(cmd).map_err(|_| anyhow!("Mismatched quotes in cmd"))?;
         if cmd.is_empty() {
             bail!("cmd argument can't be empty");
         }
         let bin = cmd.remove(0);
-        Ok(Exec {
-            bin,
-            args: cmd,
-        })
+        Ok(Exec { bin, args: cmd })
     }
 }
 
@@ -153,13 +150,10 @@ impl Sink for Exec {
             .spawn()
             .context("Failed to spawn child")?;
         let mut stdin = child.stdin.take().unwrap();
-        stdin.write(b)
-            .context("Failed to write to child")?;
+        stdin.write(b).context("Failed to write to child")?;
         drop(stdin);
 
-        let exit = child
-            .wait()
-            .context("Failed to wait for child")?;
+        let exit = child.wait().context("Failed to wait for child")?;
 
         if exit.success() {
             // we know the password
@@ -180,7 +174,7 @@ fn permutate<F: Feedback, S: Sink>(mut pattern: Pattern, mut sink: S) -> Result<
             Match::KnownMatch(hit) => {
                 f.found(hit);
                 break;
-            },
+            }
             Match::UnknownMatch => break,
             Match::None => (),
         }
