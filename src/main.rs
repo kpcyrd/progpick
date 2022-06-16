@@ -66,10 +66,11 @@ impl Feedback for Silent {
 }
 
 struct Verbose(ProgressBar);
+
 impl Feedback for Verbose {
     #[inline]
     fn new(total: usize) -> Verbose {
-        clicolors_control::set_colors_enabled(true);
+        console::set_colors_enabled(true);
 
         let pb = ProgressBar::new(total as u64);
         pb.set_draw_target(ProgressDrawTarget::stderr());
@@ -108,6 +109,7 @@ impl Stdout {
         Stdout(io::stdout())
     }
 }
+
 impl Sink for Stdout {
     #[inline(always)]
     fn write<'a>(&mut self, b: &'a[u8]) -> Result<Match<'a>> {
