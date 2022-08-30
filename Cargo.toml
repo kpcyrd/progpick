@@ -15,6 +15,6 @@ atty = "0.2.11"
 clap = { version = "3.2.5", features = ["derive"] }
 console = { version = "0.15.0", default-features = false }
 env_logger = "0.9"
-indicatif = "0.16"
+indicatif = "0.17"
 log = "0.4"
 shellwords = "1.0"

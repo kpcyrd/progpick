@@ -4,6 +4,7 @@ use env_logger::Env;
 use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
+use std::time::Duration;
 
 mod errors;
 use crate::errors::*;
@@ -75,9 +76,9 @@ impl Feedback for Verbose {
         pb.set_style(ProgressStyle::default_bar()
             .tick_chars(".oO°  °Oo.  ")
             .template(" {spinner:.bold.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+            .unwrap()
             .progress_chars("=>-"));
-        pb.enable_steady_tick(100);
-        pb.set_draw_delta(10_000);
+        pb.enable_steady_tick(Duration::from_millis(100));
         Verbose(pb)
     }
 
