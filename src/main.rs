@@ -17,26 +17,24 @@ pub struct Args {
     #[arg(short, long, action(ArgAction::Count))]
     verbose: u8,
     /// Count total number of permutations instead of printing them
-    #[clap(short = 'c', long = "count")]
+    #[arg(short = 'c', long = "count")]
     count: bool,
     /// Do not print progress bar
-    #[clap(short = 'q', long = "quiet")]
+    #[arg(short = 'q', long = "quiet")]
     quiet: bool,
     /// Send permutations to stdin of a subprocess
-    #[clap(short = 'e', long = "exec")]
+    #[arg(short = 'e', long = "exec")]
     exec: Option<String>,
     pattern: Pattern,
 }
 
-pub enum Match<'a> {
-    KnownMatch(&'a [u8]),
-    UnknownMatch,
-    None,
+pub enum SolveStatus<'a> {
+    KnownSolution(&'a [u8]),
+    UnknownSolution,
+    Unsolved,
 }
 
 trait Feedback {
-    fn new(total: usize) -> Self;
-
     fn found(&self, password: &[u8]);
 
     #[inline(always)]
@@ -50,23 +48,31 @@ fn display_pw(bytes: &[u8]) -> &str {
     std::str::from_utf8(&bytes[..bytes.len() - 1]).unwrap()
 }
 
-struct Silent;
+fn colored_found_msg(password: &[u8]) -> String {
+    format!(
+        "\x1b[1m[\x1b[32m+\x1b[0;1m]\x1b[0m found: {:?}",
+        display_pw(password)
+    )
+}
+
+struct Silent {
+    colors: bool,
+}
+
 impl Feedback for Silent {
     #[inline(always)]
-    fn new(_total: usize) -> Silent {
-        Silent
-    }
-
-    #[inline(always)]
     fn found(&self, password: &[u8]) {
-        println!("[+] found: {:?}", display_pw(password));
+        if self.colors {
+            println!("{}", colored_found_msg(password));
+        } else {
+            println!("[+] found: {:?}", display_pw(password));
+        }
     }
 }
 
 struct Verbose(ProgressBar);
 
-impl Feedback for Verbose {
-    #[inline]
+impl Verbose {
     fn new(total: usize) -> Verbose {
         console::set_colors_enabled(true);
 
@@ -80,13 +86,12 @@ impl Feedback for Verbose {
         pb.enable_steady_tick(Duration::from_millis(100));
         Verbose(pb)
     }
+}
 
+impl Feedback for Verbose {
     #[inline(always)]
     fn found(&self, password: &[u8]) {
-        self.0.println(format!(
-            "\x1b[1m[\x1b[32m+\x1b[0;1m]\x1b[0m found: {:?}",
-            display_pw(password)
-        ));
+        self.0.println(colored_found_msg(password));
     }
 
     #[inline(always)]
@@ -101,7 +106,7 @@ impl Feedback for Verbose {
 }
 
 trait Sink {
-    fn write<'a>(&mut self, b: &'a [u8]) -> Result<Match<'a>>;
+    fn write<'a>(&mut self, b: &'a [u8]) -> Result<SolveStatus<'a>>;
 }
 
 struct Stdout(io::Stdout);
@@ -113,12 +118,12 @@ impl Stdout {
 
 impl Sink for Stdout {
     #[inline(always)]
-    fn write<'a>(&mut self, b: &'a [u8]) -> Result<Match<'a>> {
+    fn write<'a>(&mut self, b: &'a [u8]) -> Result<SolveStatus<'a>> {
         if self.0.write(b).is_err() {
-            // we can't reliably tell which password worked
-            Ok(Match::UnknownMatch)
+            // we can't reliably tell which password worked based on stdout close
+            Ok(SolveStatus::UnknownSolution)
         } else {
-            Ok(Match::None)
+            Ok(SolveStatus::Unsolved)
         }
     }
 }
@@ -141,7 +146,7 @@ impl Exec {
 
 impl Sink for Exec {
     #[inline(always)]
-    fn write<'a>(&mut self, b: &'a [u8]) -> Result<Match<'a>> {
+    fn write<'a>(&mut self, b: &'a [u8]) -> Result<SolveStatus<'a>> {
         let mut child = Command::new(&self.bin)
             .args(&self.args)
             .stdin(Stdio::piped())
@@ -157,26 +162,24 @@ impl Sink for Exec {
 
         if exit.success() {
             // we know the password
-            Ok(Match::KnownMatch(b))
+            Ok(SolveStatus::KnownSolution(b))
         } else {
-            Ok(Match::None)
+            Ok(SolveStatus::Unsolved)
         }
     }
 }
 
-fn permutate<F: Feedback, S: Sink>(mut pattern: Pattern, mut sink: S) -> Result<()> {
-    let f = F::new(pattern.count());
-
+fn permutate(mut pattern: Pattern, sink: &mut dyn Sink, f: &dyn Feedback) -> Result<()> {
     let mut out = String::new();
     while let Some(out) = pattern.next(&mut out) {
         out.push('\n');
         match sink.write(out.as_bytes())? {
-            Match::KnownMatch(hit) => {
+            SolveStatus::KnownSolution(hit) => {
                 f.found(hit);
                 break;
             }
-            Match::UnknownMatch => break,
-            Match::None => (),
+            SolveStatus::UnknownSolution => break,
+            SolveStatus::Unsolved => (),
         }
         out.clear();
         f.inc();
@@ -184,15 +187,6 @@ fn permutate<F: Feedback, S: Sink>(mut pattern: Pattern, mut sink: S) -> Result<
 
     f.finish();
     Ok(())
-}
-
-#[inline]
-fn dispatch<S: Sink>(pattern: Pattern, sink: S, quiet: bool) -> Result<()> {
-    if quiet {
-        permutate::<Silent, _>(pattern, sink)
-    } else {
-        permutate::<Verbose, _>(pattern, sink)
-    }
 }
 
 fn main() -> Result<()> {
@@ -208,16 +202,22 @@ fn main() -> Result<()> {
 
     if args.count {
         println!("{}", args.pattern.count());
-    } else if let Some(exec) = args.exec {
-        let exec = Exec::new(&exec)?;
-        dispatch(args.pattern, exec, args.quiet)?;
     } else {
-        let stdout = Stdout::new();
-        dispatch(
-            args.pattern,
-            stdout,
-            args.quiet || io::stdout().is_terminal(),
-        )?;
+        let mut sink: Box<dyn Sink> = if let Some(exec) = args.exec {
+            Box::new(Exec::new(&exec)?)
+        } else {
+            Box::new(Stdout::new())
+        };
+
+        let colors = io::stdout().is_terminal();
+        let feedback: Box<dyn Feedback> = if args.quiet || !colors {
+            Box::new(Silent { colors })
+        } else {
+            let count = args.pattern.count();
+            Box::new(Verbose::new(count))
+        };
+
+        permutate(args.pattern, &mut *sink, &*feedback)?;
     }
 
     Ok(())
