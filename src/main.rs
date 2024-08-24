@@ -1,21 +1,20 @@
-use atty::Stream;
-use clap::Parser;
+mod errors;
+mod pattern;
+mod tokens;
+
+use crate::errors::*;
+use crate::pattern::Pattern;
+use clap::{ArgAction, Parser};
 use env_logger::Env;
 use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::process::{Command, Stdio};
 use std::time::Duration;
-
-mod errors;
-use crate::errors::*;
-mod pattern;
-use crate::pattern::Pattern;
-mod tokens;
 
 #[derive(Debug, Parser)]
 pub struct Args {
     /// Verbose logs (can be used multiple times, maximum: 4)
-    #[clap(short, long, parse(from_occurrences))]
+    #[arg(short, long, action(ArgAction::Count))]
     verbose: u8,
     /// Count total number of permutations instead of printing them
     #[clap(short = 'c', long = "count")]
@@ -72,7 +71,7 @@ impl Feedback for Verbose {
         console::set_colors_enabled(true);
 
         let pb = ProgressBar::new(total as u64);
-        pb.set_draw_target(ProgressDrawTarget::stderr());
+        pb.set_draw_target(ProgressDrawTarget::stderr_with_hz(4));
         pb.set_style(ProgressStyle::default_bar()
             .tick_chars(".oO°  °Oo.  ")
             .template(" {spinner:.bold.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
@@ -197,7 +196,7 @@ fn dispatch<S: Sink>(pattern: Pattern, sink: S, quiet: bool) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let args = Args::from_args();
+    let args = Args::parse();
 
     let log_level = match args.verbose {
         0 => "warn",
@@ -214,7 +213,11 @@ fn main() -> Result<()> {
         dispatch(args.pattern, exec, args.quiet)?;
     } else {
         let stdout = Stdout::new();
-        dispatch(args.pattern, stdout, args.quiet || atty::is(Stream::Stdout))?;
+        dispatch(
+            args.pattern,
+            stdout,
+            args.quiet || io::stdout().is_terminal(),
+        )?;
     }
 
     Ok(())
