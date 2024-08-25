@@ -2,7 +2,7 @@ use crate::errors::*;
 use crate::tokens::{self, Token};
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Pattern {
     fragments: Vec<Fragment>,
     first: bool,
@@ -127,13 +127,13 @@ impl FromStr for Pattern {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Fragment {
     Chunk(String),
     Switch(Switch),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Switch {
     options: Vec<Vec<Fragment>>,
     ctr: usize,

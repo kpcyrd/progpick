@@ -1,6 +1,6 @@
 use crate::errors::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Token {
     Chunk(String),
     SwitchOpen,
