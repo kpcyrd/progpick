@@ -32,6 +32,9 @@ progpick -e './script.sh' 'a{b,c{d,e{f,g}}}'
 
 # Attempt to open a luks partition
 sudo progpick -e 'cryptsetup open --test-passphrase /dev/sdc1' 'a{b,c{d,e{f,g}}}'
+
+# Recover the passphrase of your gpg secret key
+progpick -e 'env GNUPGHOME=/backup/.gnupg/ gpg --batch --passphrase-fd 0 --pinentry-mode loopback --export-secret-keys YOUR_FINGERPRINT' "$(cat pattern.txt)"
 ```
 
 # License
