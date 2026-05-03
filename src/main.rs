@@ -12,6 +12,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 #[derive(Debug, Parser)]
+#[command(version)]
 pub struct Args {
     /// Verbose logs (can be used multiple times, maximum: 4)
     #[arg(short, long, action(ArgAction::Count))]
@@ -77,7 +78,7 @@ impl Verbose {
         console::set_colors_enabled(true);
 
         let pb = ProgressBar::new(total as u64);
-        pb.set_draw_target(ProgressDrawTarget::stderr_with_hz(4));
+        pb.set_draw_target(ProgressDrawTarget::stderr());
         pb.set_style(ProgressStyle::default_bar()
             .tick_chars(".oO°  °Oo.  ")
             .template(" {spinner:.bold.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
