@@ -7,7 +7,7 @@ license = "GPL-3.0"
 repository = "https://github.com/kpcyrd/progpick"
 categories = ["command-line-utilities"]
 readme = "README.md"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 anyhow = "1.0.57"
