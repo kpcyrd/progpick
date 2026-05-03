@@ -12,6 +12,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 #[derive(Debug, Parser)]
+#[command(version)]
 pub struct Args {
     /// Verbose logs (can be used multiple times, maximum: 4)
     #[arg(short, long, action(ArgAction::Count))]
