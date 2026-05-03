@@ -71,7 +71,7 @@ pub fn parse(s: &str) -> Result<Vec<Token>> {
                     iter.next(); // consume the value
 
                     // ensure start is a single byte
-                    if x.as_bytes().len() != 1 {
+                    if x.len() != 1 {
                         bail!("range patterns only support a single ascii character");
                     }
 
